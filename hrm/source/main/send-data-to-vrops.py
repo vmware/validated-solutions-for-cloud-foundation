@@ -125,14 +125,7 @@ class PushDataVrops:
 
         self.logger.info('Fetching data from VMware.CloudFoundation.Reporting cmdlets...')
         self.get_data_from_reporting_module()
-
-        self.logger.info('Fetching data from SOS Utility on SDDC Manager...')
-        self.logger.info('This can take 15~90 min (or even more) depending on the size of your environment. '
-                         'Please wait....')
-        self.data = self.get_sos_data_from_sddc_manager()
-
-        if not self.data:
-            self.logger.error("Unable to get data from SOS Utility on SDDC Manager")
+        self.data = None
 
     def decrypt_pwds(self):
         # read encrypted pwd and convert into byte
@@ -239,25 +232,42 @@ class PushDataVrops:
 
         self.logger.info(f'Generated JSON files for Publish-* cmdlets in location {self.logger.test_log_folder}')
 
+    def get_list_of_workload_domain(self):
+        psu = PSUtility(logger=self.logger)
+        request_token_cmd = f"Request-VCFToken -fqdn {self.sddc_manager_fqdn} -username {self.sddc_manager_user} " \
+                            f"-password '{self.sddc_manager_pwd}'"
+        get_worload_domains_cmd = '((Get-VCFWorkloadDomain | Sort-Object type | Select-Object name).name)'
+        combined_cmd = request_token_cmd + ' ; ' + get_worload_domains_cmd
+        workload_domains_string = psu.execute_ps_cmd(combined_cmd)
+        workload_domains_list = workload_domains_string.split("\n")
+        self.domain_list = workload_domains_list[1:-1]
+
     # TODO: change this function
-    def get_sos_data_from_sddc_manager(self):
-
-
-        data = None
+    def get_sos_data_from_sddc_manager(self, domain=None):
         dest = os.path.join(self.logger.test_log_folder, self.data_file)
 
+        if domain is None:
+            self.logger.info('Fetching data from SOS Utility on SDDC Manager...')
+        else:
+            self.logger.info(f'Fetching {domain} workload domain data from SOS Utility on SDDC Manager...')
+        self.logger.info('This can take 15~90 min (or even more) depending on the size of your environment. '
+                         'Please wait....')
+
         sosrest = SosRest(host=self.sddc_manager_fqdn, user=self.sddc_manager_user,
-                          password=self.sddc_manager_pwd, logger=self.logger)
+                          password=self.sddc_manager_pwd, domain=domain, logger=self.logger)
         sosrest.get_auth_token()
         request_id = sosrest.start_health_checks_op(vcf_version=self.vcf_version)
         sosrest.get_health_checks_status(request_id)
         sosrest.get_health_check_bundle(request_id, path=self.logger.test_log_folder)
 
         if os.path.exists(dest):
-            data = self.read_data(os.path.join(dest))
+            self.data = self.read_data(os.path.join(dest))
         else:
             self.logger.error(f'Unable to find {self.data_file} in {dest}')
-        return data
+            if domain is None:
+                self.logger.error("Unable to get data from SOS Utility on SDDC Manager")
+            else:
+                self.logger.error(f'Unable to get {domain} workload domain data from SOS Utility on SDDC Manager')
 
     def match_resources(self, resource_kind, adapter_kind):
         try:
@@ -1713,4 +1723,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     pd = PushDataVrops(args)
-    pd.push_data()
+    pd.get_list_of_workload_domain()
+    for domainItem in pd.domain_list:
+        pd.get_sos_data_from_sddc_manager(domain=domainItem)
+        pd.push_data()
