@@ -22,10 +22,11 @@ import glob
 
 class SosRest(object):
 
-    def __init__(self, host, user, password, logger=None):
+    def __init__(self, host, user, password, domain=None, logger=None):
         self.host = host
         self.user = user
         self.password = password
+        self.domain = domain
         self.logger = logger
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         self.token = self.get_auth_token()
@@ -58,6 +59,13 @@ class SosRest(object):
             'Authorization': f'Bearer {self.token}'
         }
 
+        if self.domain is None:
+            domainNameString = "\"\""
+            includeAllDomainsString = True
+        else:
+            domainNameString = self.domain
+            includeAllDomainsString = False
+
         if vcf_version >= '5.2':
             json_data = {
                 "healthChecks": {
@@ -86,9 +94,9 @@ class SosRest(object):
                 "scope": {
                     "domains": [{
                         "clusterNames": [""],
-                        "domainName": ""
+                        "domainName": domainNameString
                     }],
-                    "includeAllDomains": True,
+                    "includeAllDomains": includeAllDomainsString,
                     "includeFreeHosts": True
                 }
             }
@@ -120,9 +128,9 @@ class SosRest(object):
                 "scope": {
                     "domains": [{
                         "clusterNames": [""],
-                        "domainName": ""
+                        "domainName": domainNameString
                     }],
-                    "includeAllDomains": True,
+                    "includeAllDomains": includeAllDomainsString,
                     "includeFreeHosts": True
                 }
             }
