@@ -1,18 +1,14 @@
-# Copyright 2023-2024 Broadcom. All Rights Reserved.
+# Copyright 2023-2026 Broadcom. All Rights Reserved.
 # SPDX-License-Identifier: BSD-2
-
-# ===================================================================================================================
-# Created by: Bhumitra Nagar
-# Authors:    Bhumitra Nagar
-# ===================================================================================================================
 #
 # Description:
 # Generates the notifications JSON based on user inputs.
 
-import json
-import sys
-import os
 import argparse
+import json
+import os
+import sys
+import tempfile
 
 class CreateNotificationsJsonFromTemplate(object):
 
@@ -71,19 +67,32 @@ class CreateNotificationsJsonFromTemplate(object):
             property_value = input(f"Enter the webhook URL for the {plugin_description} plugin "
                                    "(e.g., https://hooks.slack.com/services/...): ")
 
-        # Set values in the JSON file
-        with open(self.input_file, 'r') as in_file, open(self.output_file, 'w') as out_file:
+        # Set values in the JSON file. Write to temp file then rename on success.
+        with open(self.input_file, 'r') as in_file:
             data = json.load(in_file)
-            for rule in data['NotificationRules']['notificationRules']:
-                for sub_rule in rule['NotificationRule']:
-                    sub_rule['PluginID']['@pluginType'] = plugin_type
-                    sub_rule['PluginID']['@pluginName'] = plugin_name
-                    sub_rule['PluginType'] = plugin_type
-                    sub_rule['PluginNotificationProperty']['PropertyName'] = property_name
-                    sub_rule['PluginNotificationProperty']['PropertyValue'] = property_value
-            json.dump(data, out_file, indent=4)
-
-        print("JSON file generated at location:", os.path.abspath(self.output_file))
+        for rule in data['NotificationRules']['notificationRules']:
+            for sub_rule in rule['NotificationRule']:
+                sub_rule['PluginID']['@pluginType'] = plugin_type
+                sub_rule['PluginID']['@pluginName'] = plugin_name
+                sub_rule['PluginType'] = plugin_type
+                sub_rule['PluginNotificationProperty']['PropertyName'] = property_name
+                sub_rule['PluginNotificationProperty']['PropertyValue'] = property_value
+        out_dir = os.path.dirname(self.output_file)
+        fd, temp_path = tempfile.mkstemp(suffix='.json', dir=out_dir if out_dir else None)
+        try:
+            with os.fdopen(fd, 'w') as out_file:
+                json.dump(data, out_file, indent=4)
+            target = os.path.abspath(self.output_file)
+            if out_dir and not os.path.isdir(out_dir):
+                os.makedirs(out_dir, exist_ok=True)
+            os.replace(temp_path, target)
+        except Exception:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise
+        print("JSON file generated at location:", target)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)

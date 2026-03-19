@@ -2,7 +2,7 @@
 
 ![PyPI](https://img.shields.io/pypi/v/vmware-cloud-foundation-health-monitoring?logo=python&logoColor=yellow&label=PyPI&labelColor=Grey&link=https%3A%2F%2Fpypi.org%2Fproject%2Fvmware-cloud-foundation-health-monitoring%2F)
 &nbsp;&nbsp;
-[![Downloads](https://static.pepy.tech/personalized-badge/vmware-cloud-foundation-health-monitoring?period=total&units=abbreviation&left_color=grey&right_color=green&left_text=DOWNLOADS)](https://pepy.tech/project/vmware-cloud-foundation-health-monitoring) &nbsp;&nbsp; [![Downloads](https://static.pepy.tech/personalized-badge/vmware-cloud-foundation-health-monitoring?period=month&units=international_system&left_color=grey&right_color=green&left_text=DOWNLOADS/WEEK)](https://pepy.tech/project/vmware-cloud-foundation-health-monitoring) &nbsp;&nbsp; [<img src="https://img.shields.io/badge/CHANGELOG-READ-blue?&logo=github&logoColor=white" alt="CHANGELOG" >][changelog]
+[![Downloads](https://static.pepy.tech/personalized-badge/vmware-cloud-foundation-health-monitoring?period=total&units=abbreviation&left_color=grey&right_color=green&left_text=DOWNLOADS)](https://pepy.tech/project/vmware-cloud-foundation-health-monitoring) &nbsp;&nbsp; [![Downloads](https://static.pepy.tech/personalized-badge/vmware-cloud-foundation-health-monitoring?period=month&units=international_system&left_color=grey&right_color=green&left_text=DOWNLOADS/WEEK)](https://pepy.tech/project/vmware-cloud-foundation-health-monitoring) &nbsp;&nbsp; [![CHANGELOG](https://img.shields.io/badge/CHANGELOG-READ-blue?&logo=github&logoColor=white)][changelog]
 
 ## Table of Contents
 
@@ -14,15 +14,17 @@
     - [Operating Systems](#operating-systems)
     - [Python Version](#python-version)
     - [Python Libraries](#python-libraries)
+    - [VMware Aria Operations Suite API Python client (nagini)](#vmware-aria-operations-suite-api-python-client-nagini)
     - [PowerShell Editions and Versions](#powershell-editions-and-versions)
     - [PowerShell Modules](#powershell-modules)
+  - [Python script layout on the SDDC Manager VM](#python-script-layout-on-the-sddc-manager-vm)
   - [Implementation](#implementation)
   - [Install the Python Module in a Disconnected Environment](#install-the-python-module-in-a-disconnected-environment)
-    - [For Photon OS](#for-photon-os)
-    - [For Windows Server](#for-windows-server)
+    - [Disconnected installation: Photon OS](#disconnected-installation-photon-os)
+    - [Disconnected installation: Windows Server](#disconnected-installation-windows-server)
   - [Updating the Python Module to the Latest Version](#updating-the-python-module-to-the-latest-version)
-    - [For Photon OS](#for-photon-os-1)
-    - [For Windows Server](#for-windows-server-1)
+    - [Upgrade on Photon OS](#upgrade-on-photon-os)
+    - [Upgrade on Windows Server](#upgrade-on-windows-server)
   - [VMware Aria Operations Dashboards Preview](#vmware-aria-operations-dashboards-preview)
   - [Known Issues](#known-issues)
   - [Support](#support)
@@ -63,6 +65,34 @@ pip install paramiko
 pip install maskpass==0.3.1
 ```
 
+### VMware Aria Operations Suite API Python client (nagini)
+
+Health Reporting and Monitoring uses the **`nagini`** module: the Python bindings for the VMware Aria Operations Suite API (historically vRealize Operations). That client **does not come from PyPI**. Any similarly named package from `pip install` (for example names that look like “nagiri” or “nagini”) is a **different project** and must not be used as a substitute.
+
+Install **`nagini`** from the VMware Aria Operations appliance using the same Python environment you use for this module:
+
+1. **Download** Replace `<your-aria-operations-fqdn>` with the FQDN of your appliance:
+
+   `https://<your-aria-operations-fqdn>/suite-api/docs/bindings/python/vcops-python.zip`
+
+   Use a browser or a tool such as `curl` or `wget` from a host that can reach the appliance. Your site may require trusting the appliance TLS certificate, or using approved certificate validation settings. If your product version exposes the archive under a different path, use the Suite API or Python client download location documented for your VMware Aria Operations release.
+
+2. **Extract** the ZIP to a working folder (for example `C:\temp\vcops-python` on Windows or `/tmp/vcops-python` on Linux).
+
+3. **Install** from the root of the extracted content (the directory that contains `setup.py`):
+
+   ```console
+   python setup.py install
+   ```
+
+4. **Verify** that Python can import the client:
+
+   ```console
+   python -c "import nagini"
+   ```
+
+   A successful run produces no output and exit code 0.
+
 ### PowerShell Editions and Versions
 
 - PowerShell Core 7.2.0 or later
@@ -70,6 +100,47 @@ pip install maskpass==0.3.1
 ### PowerShell Modules
 
 - [PowerShell Module for VMware Cloud Foundation Reporting](https://github.com/vmware/powershell-module-for-vmware-cloud-foundation-reporting) - latest version
+
+## Python script layout on the SDDC Manager VM
+
+`send-data-to-vrops.py` loads **`utils`** from a directory on `sys.path` and sets the process working directory to that **workspace** (so `env.json` and `encrypted_files` resolve correctly). Copying only the script without `utils` causes `ModuleNotFoundError` or the startup error that lists paths tried.
+
+### Layout A — flat (matches `source/main` in this repository)
+
+Everything lives in one folder:
+
+```text
+send-data-to-vrops.py
+env.json
+utils/
+  __init__.py
+  FolderUtility.py
+  LogUtility.py
+  PSUtility.py
+  SosRest.py
+```
+
+### Layout B — `pip install --target` (wheel / PyPI install)
+
+`pip install ... --target <folder>` often places the package under **`main/`** while entry scripts sit in the **target root**. The script resolves **`main\utils\LogUtility.py`** and uses **`main\`** as the working directory:
+
+```text
+<target>/
+  send-data-to-vrops.py
+  main/
+    env.json
+    encrypted_files/
+    utils/
+      __init__.py
+      FolderUtility.py
+      LogUtility.py
+      PSUtility.py
+      SosRest.py
+```
+
+You can run `python .\send-data-to-vrops.py` from `<target>`; it does not require copying `utils` next to the script at the root.
+
+Other files (for example `encrypt-passwords.py`, `notifications.py`) are optional unless you use those features.
 
 ## Implementation
 
@@ -79,7 +150,9 @@ Follow the [Implementation of Health Reporting and Monitoring for VMware Cloud F
 
 For disconnected environments (_e.g._, dark-site, air-gapped), you can save the Health Reporting and Monitoring Python module and its dependencies from the PyPI using the below instructions.
 
-### For Photon OS
+The **`nagini`** Suite API client is not on PyPI; stage the `vcops-python.zip` bindings from your VMware Aria Operations appliance (or an internal file share of that archive) and install them in the same Python environment before or after the steps below. See [VMware Aria Operations Suite API Python client (nagini)](#vmware-aria-operations-suite-api-python-client-nagini).
+
+### Disconnected installation: Photon OS
 
 - On the target system, create a directory to save the Python modules
 
@@ -137,7 +210,7 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
   pip install -r module.txt --no-index --find-links . -t /opt/vmware/hrm-<sddc_manager_vm_name>
   ```
 
-### For Windows Server
+### Disconnected installation: Windows Server
 
 - From a system with an Internet connection, make a modules folder `F:\hrm-modules`.
 - Create a new file `requirements.txt` inside the modules folder.
@@ -183,7 +256,7 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
 
 ## Updating the Python Module to the Latest Version
 
-### For Photon OS
+### Upgrade on Photon OS
 
 - Log in to the host virtual machine at `<host_virtual_machine_fqdn>:22` as the `root` user by using a Secure Shell (SSH) client.
 
@@ -211,6 +284,8 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
   vi env.json
   ```
 
+- If your `env.json` predates **`sos_options`**, add that stanza using the patch or script in [`patches/README-SOS-OPTIONS.md`](patches/README-SOS-OPTIONS.md) (Linux, macOS, and Windows).
+
 - Encrypt the service account passwords.
 
   ```console
@@ -222,7 +297,7 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
 - Enter the password for the SDDC Manager appliance local user.
 - Repeat this procedure for each VMware Cloud Foundation instance.
 
-### For Windows Server
+### Upgrade on Windows Server
 
 - Log in to the host virtual machine at `<host_virtual_machine_fqdn>` as the `Administrator` user by using a Remote Desktop Connection (RDC) client and open a PowerShell console.
 - Start Windows Command Prompt.
@@ -244,6 +319,8 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
   notepad env.json
   ```
 
+- If your `env.json` predates **`sos_options`**, add that stanza using the patch or script in [`patches/README-SOS-OPTIONS.md`](patches/README-SOS-OPTIONS.md) (Linux, macOS, and Windows).
+
 - Encrypt the service account passwords.
 
   ```console
@@ -259,95 +336,95 @@ For disconnected environments (_e.g._, dark-site, air-gapped), you can save the 
 
 1. VCF Health Rollup
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup1-min.png)
+   ![VCF Health Rollup dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup1-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup2-min.png)
+   ![VCF Health Rollup dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup2-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup3-min.png)
+   ![VCF Health Rollup dashboard screenshot 3](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Rollup3-min.png)
 
 2. VCF Backup Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Backups1-min.png)
+   ![VCF Backup Health dashboard screenshot](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Backups1-min.png)
 
 3. VCF Certificate Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Certificates1-min.png)
+   ![VCF Certificate Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Certificates1-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Certificates2-min.png)
+   ![VCF Certificate Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Certificates2-min.png)
 
 4. VCF Compute Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Compute1-min.png)
+   ![VCF Compute Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Compute1-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Compute2-min.png)
+   ![VCF Compute Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Compute2-min.png)
 
 5. VCF Connectivity Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Connectivity1-min.png)
+   ![VCF Connectivity Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Connectivity1-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Connectivity2-min.png)
+   ![VCF Connectivity Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Connectivity2-min.png)
 
 6. VCF DNS Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/DNS1-min.png)
+   ![VCF DNS Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/DNS1-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/DNS2-min.png)
+   ![VCF DNS Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/DNS2-min.png)
 
 7. VCF Hardware Compatibility
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/hw-compatibility-min.png)
+   ![VCF Hardware Compatibility dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/hw-compatibility-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/hw-compatibility-min2.png)
+   ![VCF Hardware Compatibility dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/hw-compatibility-min2.png)
 
 8. VCF Networking Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking-min.png)
+   ![VCF Networking Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking3-min.png)
+   ![VCF Networking Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking3-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking4-min.png)
+   ![VCF Networking Health dashboard screenshot 3](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Networking4-min.png)
 
 9. VCF NTP Health
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/NTP-min.png)
+   ![VCF NTP Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/NTP-min.png)
 
-   ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/NTP3-min.png)
+   ![VCF NTP Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/NTP3-min.png)
 
 10. VCF Password Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Password1-min.png)
+    ![VCF Password Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Password1-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Password2-min.png)
+    ![VCF Password Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Password2-min.png)
 
 11. VCF SDDC Manager and vCenter Services Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Services1-min.png)
+    ![VCF SDDC Manager and vCenter Services Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Services1-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Services2-min.png)
+    ![VCF SDDC Manager and vCenter Services Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Services2-min.png)
 
 12. VCF Snapshot Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Snapshots1-min.png)
+    ![VCF Snapshot Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Snapshots1-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Snapshots2-min.png)
+    ![VCF Snapshot Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/Snapshots2-min.png)
 
 13. VCF Storage Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/storage1-min.png)
+    ![VCF Storage Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/storage1-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/storage2-min.png)
+    ![VCF Storage Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/storage2-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/connected-roms-min.png)
+    ![VCF Storage Health connected CD-ROM dashboard screenshot](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/connected-roms-min.png)
 
 14. VCF vSAN Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/vSAN-min.png)
+    ![VCF vSAN Health dashboard screenshot 1](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/vSAN-min.png)
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/vSAN2-min.png)
+    ![VCF vSAN Health dashboard screenshot 2](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/vSAN2-min.png)
 
 15. VCF Version Health
 
-    ![](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/version-min.png)
+    ![VCF Version Health dashboard screenshot](https://raw.githubusercontent.com/vmware-samples/validated-solutions-for-cloud-foundation/main/hrm/images/version-min.png)
 
 ## Known Issues
 

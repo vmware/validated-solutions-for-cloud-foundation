@@ -1,15 +1,11 @@
-# Copyright 2023-2024 Broadcom. All Rights Reserved.
+# Copyright 2023-2026 Broadcom. All Rights Reserved.
 # SPDX-License-Identifier: BSD-2
-
-# ===================================================================================================================
-# Created by: Bhumitra Nagar
-# Authors:    Bhumitra Nagar
-# ===================================================================================================================
 #
 # Description:
 # Implements the Logger class. Used for logging output to a file.
 
 import os
+import sys
 import logging
 import traceback
 import inspect
@@ -51,8 +47,13 @@ class LogUtility(object):
     def warn(self, msg):
         fname, line_num = self.__get_call_info()
         msg = "[{}:{}] - {}".format(fname, line_num, msg)
-        self.__logger.warn(msg)
-        self.__logger.warn(traceback.format_exc())
+        self.__logger.warning(msg)
+        if sys.exc_info()[0] is not None:
+            self.__logger.warning(traceback.format_exc())
+
+    def warning(self, msg):
+        """Log at WARNING level (alias for warn; matches stdlib logging.Logger.warning)."""
+        self.warn(msg)
 
     def error(self, msg, trace=True):
         fname, line_num = self.__get_call_info()
@@ -76,7 +77,7 @@ class LogUtility(object):
             return LogUtility.__test_logger
 
     def _get_logger(self, level='INFO'):
-        """default python logger"""
+        """Configure and return the default Python logger."""
         accepted_levels = {'INFO': logging.INFO, 'DEBUG': logging.DEBUG}
         if level.upper() not in accepted_levels:
             raise Exception('INVALID LOG LEVEL SPECIFIED')
@@ -85,7 +86,7 @@ class LogUtility(object):
         test_log_directory = FolderUtility.get_log_directory()
         FolderUtility.make_directory(test_log_directory)
         tmp_log_file_folder = os.path.join(test_log_directory, "send-data_")
-        self.test_log_folder = FolderUtility.make_director_with_timestamp(tmp_log_file_folder)
+        self.test_log_folder = FolderUtility.make_directory_with_timestamp(tmp_log_file_folder)
         log_file_path = os.path.join(self.test_log_folder, "send-data-to-vrops.log")
         logging.basicConfig(level=logging.NOTSET, format=logging_format, datefmt=date_format)
         formatter = logging.Formatter(fmt=logging_format, datefmt=date_format)

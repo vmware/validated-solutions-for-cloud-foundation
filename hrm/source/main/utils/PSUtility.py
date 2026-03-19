@@ -1,10 +1,5 @@
-# Copyright 2023-2024 Broadcom. All Rights Reserved.
+# Copyright 2023-2026 Broadcom. All Rights Reserved.
 # SPDX-License-Identifier: BSD-2
-
-# ===================================================================================================================
-# Created by: Bhumitra Nagar
-# Authors:    Bhumitra Nagar
-# ===================================================================================================================
 #
 # Description:
 # Runs health checks and retrieves data from the SOS Utility running on SDDC Manager.
@@ -12,7 +7,6 @@
 
 import os
 import subprocess
-import signal
 import shutil
 
 
@@ -55,13 +49,16 @@ class PSUtility:
             return output
         except Exception as e:
             self.log_msg(e)
+            return None
         finally:
-            if not self.p:
-                self.log_msg(f'Kill subprocess with id {self.p.pid}')
+            if self.p is not None:
                 try:
-                    os.killpg(os.getpgid(self.p.pid), signal.SIGTERM)
+                    self.p.terminate()
+                    self.p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.p.kill()
                 except Exception as e:
-                    self.log_msg(f'error occurred while killing process {e}')
+                    self.log_msg(f'Error occurred while terminating process: {e}')
 
 
 if __name__ == "__main__":

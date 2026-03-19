@@ -1,10 +1,5 @@
-# Copyright 2023-2024 Broadcom. All Rights Reserved.
+# Copyright 2023-2026 Broadcom. All Rights Reserved.
 # SPDX-License-Identifier: BSD-2
-
-# ===================================================================================================================
-# Created by: Bhumitra Nagar
-# Authors:    Bhumitra Nagar
-# ===================================================================================================================
 #
 # Description:
 # Encrypts the passwords for SDDC Manager and VMware Aria Operations credentials. 
@@ -40,25 +35,26 @@ class EncryptPasswords:
                                                         f"{sddc_manager_local_user}: ", mask="*")
 
         # generate key and write to file
+        os.makedirs('encrypted_files', exist_ok=True)
         key = Fernet.generate_key()
         with open(os.path.join('encrypted_files', 'key'), "wb") as f:
             f.write(key)
 
         # encrypt and write to file
-        rKey = Fernet(key)
-        bvrops_pwd = bytes(vrops_pwd, 'utf-8')
-        enc_vrops_pwd = rKey.encrypt(bvrops_pwd)
+        cipher = Fernet(key)
+        vrops_pwd_bytes = bytes(vrops_pwd, 'utf-8')
+        enc_vrops_pwd = cipher.encrypt(vrops_pwd_bytes)
 
-        bsddc_user = bytes(sddc_manager_user_pwd, 'utf-8')
-        enc_sddc_user = rKey.encrypt(bsddc_user)
+        sddc_user_pwd_bytes = bytes(sddc_manager_user_pwd, 'utf-8')
+        enc_sddc_user = cipher.encrypt(sddc_user_pwd_bytes)
 
-        bsddc_local_user = bytes(sddc_manager_vcf_pwd, 'utf-8')
-        env_sddc_local_user = rKey.encrypt(bsddc_local_user)
+        sddc_local_pwd_bytes = bytes(sddc_manager_vcf_pwd, 'utf-8')
+        enc_sddc_local_user = cipher.encrypt(sddc_local_pwd_bytes)
 
         with open(os.path.join('encrypted_files', 'encrypted_pwds'), "wb") as ep:
             ep.write(enc_vrops_pwd + b'\n')
             ep.write(enc_sddc_user + b'\n')
-            ep.write(env_sddc_local_user)
+            ep.write(enc_sddc_local_user)
 
         print(f'Encrypted Password files saved to {os.path.abspath("encrypted_files")}')
 
