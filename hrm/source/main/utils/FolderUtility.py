@@ -1,10 +1,5 @@
-# Copyright 2023-2024 Broadcom. All Rights Reserved.
+# Copyright 2023-2026 Broadcom. All Rights Reserved.
 # SPDX-License-Identifier: BSD-2
-
-# ===================================================================================================================
-# Created by: Bhumitra Nagar
-# Authors:    Bhumitra Nagar
-# ===================================================================================================================
 #
 # Description:
 # Helper script to perform folder operations like creating log directory, and deleting logs older than x days.
@@ -44,14 +39,12 @@ class FolderUtility(object):
 
     @staticmethod
     def make_directory(path):
-        """
-        Make directory at given path
-        """
+        """Create the directory at the given path if it does not already exist."""
         if not os.path.isdir(path):
             os.makedirs(path)
 
     @staticmethod
-    def make_director_with_timestamp(path):
+    def make_directory_with_timestamp(path):
         dir_name = path + datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         os.makedirs(dir_name)
         return dir_name
@@ -88,7 +81,7 @@ class FolderUtility(object):
         if '.' not in file_name:
             file_name = file_name + '.py'
         matches = []
-        for root, dir_names, file_names in os.walk(path):
+        for root, _, file_names in os.walk(path):
             for filename in fnmatch.filter(file_names, file_name):
                 matches.append(os.path.join(root, filename))
 
@@ -109,23 +102,29 @@ class FolderUtility(object):
         seconds = time.time() - (days * 24 * 60 * 60)
 
         if os.path.exists(path):
+            folder_paths_to_delete = []
+            file_paths_to_delete = []
             for root_folder, folders, files in os.walk(path):
                 for folder in folders:
                     if 'send-data_' in folder:
                         folder_path = os.path.join(root_folder, folder)
                         if seconds >= os.stat(folder_path).st_ctime:
-                            if logger:
-                                logger.info(f'Deleting {folder_path}')
-                            FolderUtility.remove_folder(folder_path)
-                            deleted_folders_count += 1
-                # checking the current directory files
-                for file in files:
-                    file_path = os.path.join(root_folder, file)
+                            folder_paths_to_delete.append(folder_path)
+                for file_name in files:
+                    file_path = os.path.join(root_folder, file_name)
                     if seconds >= os.stat(file_path).st_ctime:
-                        if logger:
-                            logger.info(f'Deleting {file_path}')
-                        FolderUtility.remove_file(file_path)
-                        deleted_files_count += 1
+                        file_paths_to_delete.append(file_path)
+            folder_paths_to_delete.sort(key=lambda p: p.count(os.sep), reverse=True)
+            for folder_path in folder_paths_to_delete:
+                if logger:
+                    logger.info(f'Deleting {folder_path}')
+                FolderUtility.remove_folder(folder_path)
+                deleted_folders_count += 1
+            for file_path in file_paths_to_delete:
+                if logger:
+                    logger.info(f'Deleting {file_path}')
+                FolderUtility.remove_file(file_path)
+                deleted_files_count += 1
         else:
             if logger:
                 logger.info(f'"{path}" is not found')
@@ -135,14 +134,14 @@ class FolderUtility(object):
 
     @staticmethod
     def remove_folder(path):
-        if not shutil.rmtree(path):
-            print(f"{path} is removed successfully")
-        else:
-            print(f"Unable to delete the {path}")
+        try:
+            shutil.rmtree(path)
+        except OSError as e:
+            print(f"Unable to delete {path}: {e}")
 
     @staticmethod
     def remove_file(path):
-        if not os.remove(path):
-            print(f"{path} is removed successfully")
-        else:
-            print(f"Unable to delete the {path}")
+        try:
+            os.remove(path)
+        except OSError as e:
+            print(f"Unable to delete {path}: {e}")
